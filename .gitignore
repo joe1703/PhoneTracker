@@ -1,0 +1,25 @@
+# Gradle
+.gradle/
+build/
+*.apk
+*.aab
+
+# Android Studio
+.idea/
+.classpath
+.project
+.settings/
+*.iml
+*.iws
+*.ipr
+.DS_Store
+local.properties
+
+# Kotlin
+*.kt.bak
+.kotlin/
+
+# Build
+bin/
+out/
+gen/

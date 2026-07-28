@@ -1,5 +1,7 @@
 package com.example.phoneusagetracker
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
@@ -12,6 +14,7 @@ import android.view.MotionEvent
 import android.view.WindowManager
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.core.app.NotificationCompat
 import com.example.phoneusagetracker.data.AppDatabase
 import com.example.phoneusagetracker.data.UsageRepository
 import kotlinx.coroutines.CoroutineScope
@@ -32,9 +35,42 @@ class FloatingWindowService : Service() {
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         val db = AppDatabase.getInstance(this)
         repository = UsageRepository(db.usageDao())
+
+        createNotificationChannel()
+        startForegroundService()
         setupScreenReceiver()
         createFloatingWindow()
         startUpdatingStats()
+        startInitialSession()
+    }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                "phone_tracker",
+                "Phone Usage Tracking",
+                NotificationManager.IMPORTANCE_LOW
+            )
+            val manager = getSystemService(NotificationManager::class.java)
+            manager.createNotificationChannel(channel)
+        }
+    }
+
+    private fun startForegroundService() {
+        val notification = NotificationCompat.Builder(this, "phone_tracker")
+            .setContentTitle("Phone Usage Tracker")
+            .setContentText("Tracking screen time...")
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setOngoing(true)
+            .build()
+
+        startForeground(1, notification)
+    }
+
+    private fun startInitialSession() {
+        scope.launch(Dispatchers.IO) {
+            repository.startSession()
+        }
     }
 
     private fun setupScreenReceiver() {

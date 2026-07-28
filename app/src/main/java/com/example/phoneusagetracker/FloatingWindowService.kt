@@ -1,7 +1,9 @@
 package com.example.phoneusagetracker
 
 import android.app.Service
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
@@ -24,14 +26,27 @@ class FloatingWindowService : LifecycleService() {
     private var floatingView: LinearLayout? = null
     private lateinit var repository: UsageRepository
     private var isExpanded = false
+    private lateinit var screenReceiver: ScreenReceiver
 
     override fun onCreate() {
         super.onCreate()
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         val db = AppDatabase.getInstance(this)
         repository = UsageRepository(db.usageDao())
+        setupScreenReceiver()
         createFloatingWindow()
         startUpdatingStats()
+    }
+
+    private fun setupScreenReceiver() {
+        screenReceiver = ScreenReceiver()
+        val intentFilter = ScreenReceiver.getIntentFilter()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(screenReceiver, intentFilter, Context.RECEIVER_EXPORTED)
+        } else {
+            @Suppress("UnspecifiedRegisterReceiverFlag")
+            registerReceiver(screenReceiver, intentFilter)
+        }
     }
 
     private fun createFloatingWindow() {
@@ -136,5 +151,6 @@ class FloatingWindowService : LifecycleService() {
     override fun onDestroy() {
         super.onDestroy()
         floatingView?.let { windowManager.removeView(it) }
+        unregisterReceiver(screenReceiver)
     }
 }

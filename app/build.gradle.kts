@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.example.phoneusagetracker"
-    compileSdk = 34
+    compileSdk = 33
 
     defaultConfig {
         applicationId = "com.example.phoneusagetracker"

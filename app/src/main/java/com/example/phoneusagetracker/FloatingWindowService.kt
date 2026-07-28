@@ -8,29 +8,28 @@ import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
 import android.view.Gravity
-import android.view.LayoutInflater
 import android.view.MotionEvent
-import android.view.View
 import android.view.WindowManager
 import android.widget.LinearLayout
 import android.widget.TextView
-import androidx.lifecycle.LifecycleService
-import androidx.lifecycle.lifecycleScope
 import com.example.phoneusagetracker.data.AppDatabase
 import com.example.phoneusagetracker.data.UsageRepository
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlin.concurrent.timer
 
-class FloatingWindowService : LifecycleService() {
+class FloatingWindowService : Service() {
     private lateinit var windowManager: WindowManager
     private var floatingView: LinearLayout? = null
     private lateinit var repository: UsageRepository
     private var isExpanded = false
     private lateinit var screenReceiver: ScreenReceiver
+    private val scope = CoroutineScope(Dispatchers.Main)
 
     override fun onCreate() {
         super.onCreate()
-        windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         val db = AppDatabase.getInstance(this)
         repository = UsageRepository(db.usageDao())
         setupScreenReceiver()
@@ -129,7 +128,7 @@ class FloatingWindowService : LifecycleService() {
 
     private fun startUpdatingStats() {
         timer(initialDelay = 1000, period = 1000) {
-            lifecycleScope.launch {
+            scope.launch {
                 val currentSession = repository.getCurrentSessionDurationMinutes()
                 val todayTotal = repository.getTodayTotalMinutes()
 

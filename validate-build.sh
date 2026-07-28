@@ -56,17 +56,17 @@ echo ""
 
 echo "[3/7] Checking build.gradle.kts files..."
 if [ -f "app/build.gradle.kts" ]; then
-    if grep -q "JavaVersion.VERSION_21" app/build.gradle.kts; then
-        echo -e "${GREEN}  ✓ Java 21 configured${NC}"
+    if grep -q "JavaVersion.VERSION_17" app/build.gradle.kts; then
+        echo -e "${GREEN}  ✓ Java 17 configured${NC}"
     else
-        echo -e "${YELLOW}  ⚠ WARNING: Java version not set to 21${NC}"
+        echo -e "${YELLOW}  ⚠ WARNING: Java version not set to 17${NC}"
         WARNINGS=$((WARNINGS + 1))
     fi
 
-    if grep -q "jvmTarget = \"21\"" app/build.gradle.kts; then
-        echo -e "${GREEN}  ✓ Kotlin JVM target set to 21${NC}"
+    if grep -q "jvmTarget = \"17\"" app/build.gradle.kts; then
+        echo -e "${GREEN}  ✓ Kotlin JVM target set to 17${NC}"
     else
-        echo -e "${YELLOW}  ⚠ WARNING: Kotlin jvmTarget not set to 21${NC}"
+        echo -e "${YELLOW}  ⚠ WARNING: Kotlin jvmTarget not set to 17${NC}"
         WARNINGS=$((WARNINGS + 1))
     fi
 else

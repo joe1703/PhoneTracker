@@ -39,12 +39,12 @@ echo.
 
 echo [3/7] Checking build.gradle.kts files...
 if exist "app\build.gradle.kts" (
-    findstr /M "JavaVersion.VERSION_21" app\build.gradle.kts >nul
+    findstr /M "JavaVersion.VERSION_17" app\build.gradle.kts >nul
     if errorlevel 1 (
-        echo [WARNING] Java version not set to 21
+        echo [WARNING] Java version not set to 17
         set /a WARNINGS=WARNINGS+1
     ) else (
-        echo [OK] Java 21 configured
+        echo [OK] Java 17 configured
     )
 ) else (
     echo [ERROR] app\build.gradle.kts not found

@@ -9,6 +9,7 @@ import android.content.IntentFilter
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
+import android.util.Log
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.WindowManager
@@ -31,24 +32,36 @@ class FloatingWindowService : Service() {
     private val scope = CoroutineScope(Dispatchers.Main)
 
     override fun onCreate() {
-        super.onCreate()
-        windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
-        val db = AppDatabase.getInstance(this)
-        repository = UsageRepository(db.usageDao())
+        try {
+            super.onCreate()
+            Log.d("FloatingWindow", "Service created")
 
-        createNotificationChannel()
-        startForegroundService()
-        setupScreenReceiver()
-        createFloatingWindow()
-        startUpdatingStats()
-        startInitialSession()
+            windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+            val db = AppDatabase.getInstance(this)
+            repository = UsageRepository(db.usageDao())
+
+            createNotificationChannel()
+            startForegroundNotification()
+
+            setupScreenReceiver()
+            createFloatingWindow()
+            startUpdatingStats()
+
+            scope.launch(Dispatchers.IO) {
+                repository.startSession()
+            }
+
+            Log.d("FloatingWindow", "Service initialized successfully")
+        } catch (e: Exception) {
+            Log.e("FloatingWindow", "Error in onCreate", e)
+        }
     }
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 "phone_tracker",
-                "Phone Usage Tracking",
+                "Phone Usage Tracker",
                 NotificationManager.IMPORTANCE_LOW
             )
             val manager = getSystemService(NotificationManager::class.java)
@@ -56,7 +69,7 @@ class FloatingWindowService : Service() {
         }
     }
 
-    private fun startForegroundService() {
+    private fun startForegroundNotification() {
         val notification = NotificationCompat.Builder(this, "phone_tracker")
             .setContentTitle("Phone Usage Tracker")
             .setContentText("Tracking screen time...")
@@ -67,115 +80,127 @@ class FloatingWindowService : Service() {
         startForeground(1, notification)
     }
 
-    private fun startInitialSession() {
-        scope.launch(Dispatchers.IO) {
-            repository.startSession()
-        }
-    }
-
     private fun setupScreenReceiver() {
-        screenReceiver = ScreenReceiver()
-        val intentFilter = ScreenReceiver.getIntentFilter()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(screenReceiver, intentFilter, Context.RECEIVER_EXPORTED)
-        } else {
-            @Suppress("UnspecifiedRegisterReceiverFlag")
-            registerReceiver(screenReceiver, intentFilter)
+        try {
+            screenReceiver = ScreenReceiver()
+            val intentFilter = ScreenReceiver.getIntentFilter()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(screenReceiver, intentFilter, Context.RECEIVER_EXPORTED)
+            } else {
+                @Suppress("UnspecifiedRegisterReceiverFlag")
+                registerReceiver(screenReceiver, intentFilter)
+            }
+            Log.d("FloatingWindow", "Screen receiver registered")
+        } catch (e: Exception) {
+            Log.e("FloatingWindow", "Error setting up receiver", e)
         }
     }
 
     private fun createFloatingWindow() {
-        floatingView = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(0xCC6200EE.toInt())
-        }
-
-        val params = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            WindowManager.LayoutParams(
-                300, 120,
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
-                PixelFormat.TRANSLUCENT
-            )
-        } else {
-            @Suppress("DEPRECATION")
-            WindowManager.LayoutParams(
-                300, 120,
-                WindowManager.LayoutParams.TYPE_PHONE,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
-                PixelFormat.TRANSLUCENT
-            )
-        }
-
-        params.gravity = Gravity.TOP or Gravity.RIGHT
-        params.x = 0
-        params.y = 100
-
-        floatingView?.apply {
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.MATCH_PARENT
-            )
-
-            val currentSessionText = TextView(this@FloatingWindowService).apply {
-                text = "Session: 0 m"
-                textSize = 14f
-                setTextColor(0xFFFFFFFF.toInt())
-                setPadding(10, 5, 10, 5)
+        try {
+            floatingView = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setBackgroundColor(0xCC6200EE.toInt())
             }
 
-            val todayTotalText = TextView(this@FloatingWindowService).apply {
-                text = "Today: 0 m"
-                textSize = 14f
-                setTextColor(0xFFFFFFFF.toInt())
-                setPadding(10, 5, 10, 5)
+            val params = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                WindowManager.LayoutParams(
+                    300, 120,
+                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                    PixelFormat.TRANSLUCENT
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                WindowManager.LayoutParams(
+                    300, 120,
+                    WindowManager.LayoutParams.TYPE_PHONE,
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                    PixelFormat.TRANSLUCENT
+                )
             }
 
-            addView(currentSessionText)
-            addView(todayTotalText)
+            params.gravity = Gravity.TOP or Gravity.RIGHT
+            params.x = 0
+            params.y = 100
 
-            setOnTouchListener { v, event ->
-                when (event.action) {
-                    MotionEvent.ACTION_DOWN -> {
-                        isExpanded = !isExpanded
-                        updateWindowSize()
-                    }
+            floatingView?.apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.MATCH_PARENT
+                )
+
+                val currentSessionText = TextView(this@FloatingWindowService).apply {
+                    text = "Session: 0 m"
+                    textSize = 14f
+                    setTextColor(0xFFFFFFFF.toInt())
+                    setPadding(10, 5, 10, 5)
+                    tag = "session"
                 }
-                false
-            }
 
-            windowManager.addView(this, params)
+                val todayTotalText = TextView(this@FloatingWindowService).apply {
+                    text = "Today: 0 m"
+                    textSize = 14f
+                    setTextColor(0xFFFFFFFF.toInt())
+                    setPadding(10, 5, 10, 5)
+                    tag = "today"
+                }
+
+                addView(currentSessionText)
+                addView(todayTotalText)
+
+                setOnTouchListener { _, event ->
+                    when (event.action) {
+                        MotionEvent.ACTION_DOWN -> {
+                            isExpanded = !isExpanded
+                            updateWindowSize()
+                        }
+                    }
+                    false
+                }
+
+                windowManager.addView(this, params)
+                Log.d("FloatingWindow", "Floating window created")
+            }
+        } catch (e: Exception) {
+            Log.e("FloatingWindow", "Error creating floating window", e)
         }
     }
 
     private fun updateWindowSize() {
-        floatingView?.let {
-            val params = it.layoutParams as WindowManager.LayoutParams
-            if (isExpanded) {
-                params.width = 400
-                params.height = 250
-            } else {
-                params.width = 300
-                params.height = 120
+        try {
+            floatingView?.let {
+                val params = it.layoutParams as WindowManager.LayoutParams
+                if (isExpanded) {
+                    params.width = 400
+                    params.height = 250
+                } else {
+                    params.width = 300
+                    params.height = 120
+                }
+                windowManager.updateViewLayout(it, params)
             }
-            windowManager.updateViewLayout(it, params)
+        } catch (e: Exception) {
+            Log.e("FloatingWindow", "Error updating window size", e)
         }
     }
 
     private fun startUpdatingStats() {
         timer(initialDelay = 1000, period = 1000) {
             scope.launch {
-                val currentSession = repository.getCurrentSessionDurationMinutes()
-                val todayTotal = repository.getTodayTotalMinutes()
+                try {
+                    val currentSession = repository.getCurrentSessionDurationMinutes()
+                    val todayTotal = repository.getTodayTotalMinutes()
 
-                floatingView?.let {
-                    if (it.childCount >= 2) {
-                        val currentSessionText = it.getChildAt(0) as? TextView
-                        val todayTotalText = it.getChildAt(1) as? TextView
+                    floatingView?.let {
+                        val sessionText = it.findViewWithTag<TextView>("session")
+                        val todayText = it.findViewWithTag<TextView>("today")
 
-                        currentSessionText?.text = "Session: $currentSession m"
-                        todayTotalText?.text = "Today: $todayTotal m"
+                        sessionText?.text = "Session: $currentSession m"
+                        todayText?.text = "Today: $todayTotal m"
                     }
+                } catch (e: Exception) {
+                    Log.e("FloatingWindow", "Error updating stats", e)
                 }
             }
         }
@@ -184,8 +209,13 @@ class FloatingWindowService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
-        super.onDestroy()
-        floatingView?.let { windowManager.removeView(it) }
-        unregisterReceiver(screenReceiver)
+        try {
+            super.onDestroy()
+            floatingView?.let { windowManager.removeView(it) }
+            unregisterReceiver(screenReceiver)
+            Log.d("FloatingWindow", "Service destroyed")
+        } catch (e: Exception) {
+            Log.e("FloatingWindow", "Error in onDestroy", e)
+        }
     }
 }

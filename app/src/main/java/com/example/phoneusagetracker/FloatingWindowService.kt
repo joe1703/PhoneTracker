@@ -9,6 +9,7 @@ import android.content.IntentFilter
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
+import android.provider.Settings
 import android.util.Log
 import android.view.Gravity
 import android.view.MotionEvent
@@ -20,6 +21,7 @@ import com.example.phoneusagetracker.data.AppDatabase
 import com.example.phoneusagetracker.data.UsageRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.concurrent.timer
 
@@ -98,6 +100,17 @@ class FloatingWindowService : Service() {
 
     private fun createFloatingWindow() {
         try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                if (!android.provider.Settings.canDrawOverlays(this)) {
+                    Log.w("FloatingWindow", "Permission not granted yet, will retry...")
+                    scope.launch {
+                        kotlinx.coroutines.delay(2000)
+                        createFloatingWindow()
+                    }
+                    return
+                }
+            }
+
             floatingView = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 setBackgroundColor(0xCC6200EE.toInt())
